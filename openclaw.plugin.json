@@ -1,0 +1,29 @@
+{
+  "id": "openclaw-dev-guardrail",
+  "name": "Dev Workflow Guardrail",
+  "description": "OpenClaw without openclaw-dev-guardrail is like a car without brakes. This plugin integrates into your AI the basic rules of any developer: Plan → Research → Build local → Check → Deploy.",
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "productionIps": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "List of production server IPs to protect. Commands targeting these IPs will be blocked or require approval."
+      },
+      "productionHosts": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "List of production hostnames to protect. Commands targeting these hosts will be blocked or require approval."
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "Enable or disable the guardrail",
+        "default": true
+      }
+    }
+  }
+}

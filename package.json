@@ -1,0 +1,42 @@
+{
+  "name": "openclaw-dev-guardrail",
+  "version": "1.0.0",
+  "description": "OpenClaw without openclaw-dev-guardrail is like a car without brakes. This plugin integrates into your AI the basic rules of any developer: Plan → Research → Build local → Check → Deploy.",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "guardrail",
+    "dev-workflow",
+    "production-safety",
+    "deploy-safety"
+  ],
+  "author": "TrustDPV.com",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trustdpv/openclaw-dev-guardrail.git"
+  },
+  "bugs": {
+    "url": "https://github.com/trustdpv/openclaw-dev-guardrail/issues"
+  },
+  "homepage": "https://github.com/trustdpv/openclaw-dev-guardrail#readme",
+  "openclaw": {
+    "extensions": ["./src/index.ts"],
+    "runtimeExtensions": ["./dist/index.js"],
+    "hooks": {
+      "before_tool_call": "./dist/index.js"
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.5.5"
+  }
+}
