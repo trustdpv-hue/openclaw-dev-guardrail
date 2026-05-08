@@ -7,6 +7,27 @@ const DANGEROUS_CHAINING = [
     /\$\(/,
     /`/,
 ];
+/**
+ * Check if an SSH command matches any allowlist pattern.
+ * Patterns support simple glob-like wildcards:
+ *   * matches any sequence of characters
+ *   ? matches any single character
+ * All other characters are matched literally (regex-special chars are escaped).
+ */
+function matchesAllowlist(sshCommand, patterns) {
+    for (const pattern of patterns) {
+        // Escape regex-special chars, then convert glob wildcards
+        const escaped = pattern
+            .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+            .replace(/\*/g, ".*")
+            .replace(/\?/g, ".");
+        const regex = new RegExp(`\\b${escaped}\\b`, "i");
+        if (regex.test(sshCommand)) {
+            return true;
+        }
+    }
+    return false;
+}
 export default definePluginEntry({
     id: "openclaw-dev-guardrail",
     name: "Dev Workflow Guardrail",
@@ -25,6 +46,7 @@ export default definePluginEntry({
             // Production IPs and hosts MUST be configured - no defaults
             const productionIps = config.productionIps ?? [];
             const productionHosts = config.productionHosts ?? [];
+            const sshAllowlist = config.sshAllowlist ?? [];
             // If no production targets configured, skip guardrail
             if (productionIps.length === 0 && productionHosts.length === 0) {
                 return;
@@ -51,6 +73,8 @@ export default definePluginEntry({
             if (!targetsProduction) {
                 return;
             }
+            // ── Level 1: BLOCK ──────────────────────────────────────
+            // Hard-blocked commands that can never be overridden.
             // SCP is always a write operation - block it
             if (/\bscp\b/.test(fullCommand)) {
                 return {
@@ -111,6 +135,8 @@ export default definePluginEntry({
                     blockReason: `${GUARDRAIL_REASON}\n\nCommand contains semicolons which could chain additional commands.\n\n${DEPLOY_SUGGESTION}`,
                 };
             }
+            // ── Level 2: ALLOW ──────────────────────────────────────
+            // Known-safe read-only commands that always pass.
             // Define what counts as read-only for SSH
             const sshReadOnlyCommands = [
                 /\bssh\b.*\bcat\b/i,
@@ -132,11 +158,18 @@ export default definePluginEntry({
                 /\bssh\b.*\bcurl\b.*\b(localhost|127\.0\.0\.1)\b/i,
             ];
             const isSshReadOnly = sshReadOnlyCommands.some((pattern) => pattern.test(fullCommand));
-            // If read-only SSH command, allow
             if (isSshReadOnly) {
                 return;
             }
-            // Block everything else - require approval
+            // ── Level 3: ALLOWLIST ───────────────────────────────────
+            // User-defined safe commands that bypass approval.
+            // These are typically write/restart operations that are trusted
+            // and frequent enough that manual approval would be impractical.
+            if (sshAllowlist.length > 0 && matchesAllowlist(fullCommand, sshAllowlist)) {
+                return;
+            }
+            // ── Level 4: REQUIRE APPROVAL ────────────────────────────
+            // Everything else needs a human to approve.
             return {
                 requireApproval: {
                     title: "Production SSH command blocked",

@@ -16,7 +16,30 @@ const DANGEROUS_CHAINING = [
 interface GuardrailConfig {
   productionIps?: string[];
   productionHosts?: string[];
+  sshAllowlist?: string[];
   enabled?: boolean;
+}
+
+/**
+ * Check if an SSH command matches any allowlist pattern.
+ * Patterns support simple glob-like wildcards:
+ *   * matches any sequence of characters
+ *   ? matches any single character
+ * All other characters are matched literally (regex-special chars are escaped).
+ */
+function matchesAllowlist(sshCommand: string, patterns: string[]): boolean {
+  for (const pattern of patterns) {
+    // Escape regex-special chars, then convert glob wildcards
+    const escaped = pattern
+      .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+      .replace(/\*/g, ".*")
+      .replace(/\?/g, ".");
+    const regex = new RegExp(`\\b${escaped}\\b`, "i");
+    if (regex.test(sshCommand)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export default definePluginEntry({
@@ -43,6 +66,7 @@ export default definePluginEntry({
         // Production IPs and hosts MUST be configured - no defaults
         const productionIps: string[] = config.productionIps ?? [];
         const productionHosts: string[] = config.productionHosts ?? [];
+        const sshAllowlist: string[] = config.sshAllowlist ?? [];
 
         // If no production targets configured, skip guardrail
         if (productionIps.length === 0 && productionHosts.length === 0) {
@@ -77,6 +101,9 @@ export default definePluginEntry({
         if (!targetsProduction) {
           return;
         }
+
+        // ── Level 1: BLOCK ──────────────────────────────────────
+        // Hard-blocked commands that can never be overridden.
 
         // SCP is always a write operation - block it
         if (/\bscp\b/.test(fullCommand)) {
@@ -154,6 +181,9 @@ export default definePluginEntry({
           };
         }
 
+        // ── Level 2: ALLOW ──────────────────────────────────────
+        // Known-safe read-only commands that always pass.
+
         // Define what counts as read-only for SSH
         const sshReadOnlyCommands = [
           /\bssh\b.*\bcat\b/i,
@@ -179,12 +209,22 @@ export default definePluginEntry({
           pattern.test(fullCommand)
         );
 
-        // If read-only SSH command, allow
         if (isSshReadOnly) {
           return;
         }
 
-        // Block everything else - require approval
+        // ── Level 3: ALLOWLIST ───────────────────────────────────
+        // User-defined safe commands that bypass approval.
+        // These are typically write/restart operations that are trusted
+        // and frequent enough that manual approval would be impractical.
+
+        if (sshAllowlist.length > 0 && matchesAllowlist(fullCommand, sshAllowlist)) {
+          return;
+        }
+
+        // ── Level 4: REQUIRE APPROVAL ────────────────────────────
+        // Everything else needs a human to approve.
+
         return {
           requireApproval: {
             title: "Production SSH command blocked",

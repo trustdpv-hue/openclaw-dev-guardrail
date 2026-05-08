@@ -19,6 +19,11 @@
         "items": { "type": "string" },
         "description": "List of production hostnames to protect. Commands targeting these hosts will be blocked or require approval."
       },
+      "sshAllowlist": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "List of SSH command patterns to allow through without approval. Supports * (any chars) and ? (single char) wildcards. Matched case-insensitively. Example: 'systemctl restart nginx', 'docker ps', 'supervisorctl *'"
+      },
       "enabled": {
         "type": "boolean",
         "description": "Enable or disable the guardrail",
